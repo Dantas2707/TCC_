@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:crud/services/firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crud/services/firestore.dart';// Ajuste o caminho para seu arquivo de serviço
+
 
 class PersonalInfoScreen extends StatefulWidget {
   const PersonalInfoScreen({Key? key}) : super(key: key);
@@ -77,7 +78,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       final dadosAtualizados = {
         'nome': _nomeController.text.trim(),
         'email': _emailController.text.trim(),
-        'cpf': _cpfController.text.trim(),
+        'cpf': _cpfController.text.trim(),  // O CPF permanece o mesmo e não pode ser alterado
         'numerotelefone': _telefoneController.text.trim(),
         // Se armazenado como DateTime ou Timestamp
         'dataNasc': DateTime.tryParse(_dataNascController.text) ?? DateTime.now(),
@@ -160,16 +161,11 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                         return null;
                       },
                     ),
-                    // CPF
+                    // CPF (Desabilitado para edição)
                     TextFormField(
                       controller: _cpfController,
                       decoration: const InputDecoration(labelText: 'CPF'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe o CPF';
-                        }
-                        return null;
-                      },
+                      enabled: false, // O campo CPF é apenas leitura
                     ),
                     // Telefone
                     TextFormField(

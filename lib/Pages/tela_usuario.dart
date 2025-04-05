@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:crud/services/firestore.dart';
+import 'tela_login.dart';
+import 'dart:convert'; // Necessário para codificação UTF-8
+import 'package:crypto/crypto.dart'; // Pacote para gerar hash
 
 class TelaUsuario extends StatefulWidget {
   const TelaUsuario({Key? key}) : super(key: key);
@@ -18,10 +21,12 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   final cpfController = TextEditingController();
   final telefoneController = TextEditingController();
   final dataNascController = TextEditingController();
-  final senhaController = TextEditingController(); // Campo de senha adicionado
+  final senhaController = TextEditingController(); // Senha 1
+  final senhaConfirmController = TextEditingController(); // Senha 2
 
   String? _sexoSelecionado;
 
+  // Função para validar o CPF
   bool validarCPF(String cpf) {
     cpf = cpf.replaceAll(RegExp(r'[^0-9]'), '');
     if (cpf.length != 11) return false;
@@ -38,10 +43,22 @@ class _TelaUsuarioState extends State<TelaUsuario> {
     return true;
   }
 
+  // Função para validar o e-mail
   bool validarEmail(String email) {
-    RegExp regex = RegExp(
-        r'^.+@[a-zA-Z]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?$');
+    RegExp regex = RegExp(r'^.+@[a-zA-Z]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?$');
     return regex.hasMatch(email);
+  }
+
+  // Função para gerar o hash da senha (SHA-256)
+  String gerarHashSenha(String senha) {
+    // Converte a senha para bytes
+    final bytes = utf8.encode(senha);
+
+    // Gera o hash SHA-256
+    final hash = sha256.convert(bytes);
+
+    // Retorna o hash como uma string hexadecimal
+    return hash.toString();
   }
 
   Future<void> selecionarDataNascimento(BuildContext context) async {
@@ -62,14 +79,27 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
   Future<void> registrarUsuario() async {
     if (_formKey.currentState!.validate()) {
+      if (senhaController.text != senhaConfirmController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('As senhas não coincidem.')),
+        );
+        return;
+      }
+
       try {
-        // Cria o usuário no Firebase Authentication
+        // Gera o hash da senha
+        String hashSenha = gerarHashSenha(senhaController.text.trim());
+
+        // Cria o usuário no Firebase Authentication (sem a criptografia)
         UserCredential authResult = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
           email: emailController.text.trim(),
-          password: senhaController.text.trim(),
+          password: senhaController.text.trim(), // Senha em texto claro para criar o usuário
         );
         String uid = authResult.user!.uid;
+
+        // Envia um e-mail de verificação
+        await authResult.user!.sendEmailVerification();
 
         // Prepara os dados do usuário
         Map<String, dynamic> dadosUsuario = {
@@ -81,6 +111,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
           'sexo': _sexoSelecionado,
           'inativar': false,
           'timestamp': DateTime.now(),
+          'senha': hashSenha, // Armazena o hash da senha
         };
 
         // Salva os dados no Firestore utilizando o UID do usuário
@@ -89,11 +120,19 @@ class _TelaUsuarioState extends State<TelaUsuario> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Usuário registrado com sucesso!')),
         );
+
+        // Redireciona para a tela de login, indicando que o e-mail foi enviado
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
+
         _formKey.currentState!.reset();
         setState(() {
           _sexoSelecionado = null;
           dataNascController.clear();
           senhaController.clear();
+          senhaConfirmController.clear();
         });
       } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,6 +193,21 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                   }
                   if (value.trim().length < 6) {
                     return 'Senha deve ter no mínimo 6 caracteres.';
+                  }
+                  return null;
+                },
+              ),
+              // Campo Confirmar Senha
+              TextFormField(
+                controller: senhaConfirmController,
+                decoration: const InputDecoration(labelText: 'Confirmar Senha'),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Por favor, confirme a senha.';
+                  }
+                  if (value != senhaController.text) {
+                    return 'As senhas não coincidem.';
                   }
                   return null;
                 },

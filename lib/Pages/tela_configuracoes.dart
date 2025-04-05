@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'tela_informacoes_pessoais.dart';
+import 'tela_guardiao.dart'; // Nova tela que será criada
 
 class SettingsMenuScreen extends StatelessWidget {
   const SettingsMenuScreen({Key? key}) : super(key: key);
@@ -25,7 +26,6 @@ class SettingsMenuScreen extends StatelessWidget {
               );
             },
           ),
-          // Adicione outros itens de menu se necessário
         ],
       ),
     );
