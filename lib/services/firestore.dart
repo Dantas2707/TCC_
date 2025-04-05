@@ -1,6 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 
 class FirestoreService {
   final CollectionReference tipoOcorrencia =
@@ -18,19 +16,23 @@ class FirestoreService {
   final CollectionReference guardioes =
       FirebaseFirestore.instance.collection("guardiões"); // Coleção de guardiões
 
-  // Função para enviar convite para o guardião por e-mail
+  // ==============================================================
+  // FUNÇÕES PARA CONVITES DE GUARDIÃO (ABORDAGEM 4 - Muitos para Muitos)
+  // ==============================================================
+
+  /// Envia convite para um guardião por e-mail.
+  /// [email] é o e-mail do possível guardião e [idUsuario] é o ID do usuário que está enviando o convite.
   Future<void> convidarGuardiaoPorEmail(String email, String idUsuario) async {
     try {
-      // Verifica se o e-mail corresponde a um usuário registrado
-      QuerySnapshot userSnapshot = await usuario
-          .where('email', isEqualTo: email)
-          .get();
+      // Verifica se o e-mail corresponde a um usuário registrado na coleção 'usuario'
+      QuerySnapshot userSnapshot =
+          await usuario.where('email', isEqualTo: email).get();
 
       if (userSnapshot.docs.isNotEmpty) {
-        // O usuário com esse e-mail existe
+        // O usuário com esse e-mail existe (possível guardião)
         String idGuardiao = userSnapshot.docs.first.id;
 
-        // Verifica se já existe a relação de guardião
+        // Verifica se já existe uma relação de guardião entre esse usuário e o guardião
         QuerySnapshot duplicado = await guardioes
             .where('id_usuario', isEqualTo: idUsuario)
             .where('id_guardiao', isEqualTo: idGuardiao)
@@ -40,126 +42,98 @@ class FirestoreService {
           throw Exception("Esta relação de guardião já existe.");
         }
 
-        // Cria um convite para o guardião aceitar
+        // Obtém o nome do usuário que está enviando o convite
+        DocumentSnapshot senderDoc = await usuario.doc(idUsuario).get();
+        String nomeUsuario = senderDoc.get('nome');
+
+        // Cria um documento de convite na coleção 'guardiões'
         await guardioes.add({
-          'id_usuario': idUsuario,  // ID do usuário que está sendo guardiado
-          'id_guardiao': idGuardiao,  // ID do guardião
-          'invitado': true,  // Marca o guardião como convidado
+          'id_usuario': idUsuario,         // ID do usuário que está enviando o convite
+          'nome_usuario': nomeUsuario,       // Nome do usuário que enviou o convite
+          'id_guardiao': idGuardiao,         // ID do possível guardião
+          'invitado': true,                // Marca o documento como convite
           'timestamp': Timestamp.now(),
-          'status': 'pendente',  // Status do convite: pendente
+          'status': 'pendente',            // Status inicial: pendente
         });
 
-        // Enviar um e-mail de convite para o guardião (aqui você pode enviar um e-mail via seu backend ou Firebase Functions)
-        // Exemplo:
-        // await sendEmailToGuardiao(email, idUsuario);
         print("Convite enviado para o e-mail: $email");
-
-        // Exibe uma mensagem de sucesso
-        print("Convite enviado com sucesso!");
       } else {
-        // O e-mail não está registrado
         print("Usuário não encontrado. Enviando convite para baixar o app.");
-
-        // Aqui você pode enviar um e-mail com o convite para baixar o app
-        // Exemplo: enviar um e-mail para o guardião com um link de download
-        // await sendInvitationToDownloadApp(email);
+        // Aqui você pode implementar o envio de um convite para baixar o aplicativo.
       }
     } catch (e) {
       print("Erro ao convidar guardião: $e");
+      throw Exception("Erro ao convidar guardião: $e");
     }
   }
 
-  // Função para adicionar um guardião à relação
-  Future<void> adicionarGuardiao(String idUsuario, String idGuardiao) async {
+  /// Aceita o convite de guardião.
+  /// [conviteDocId] é o ID do documento de convite na coleção 'guardiões',
+  /// [idUsuario] é o ID do usuário que enviou o convite e [idGuardiao] é o ID do guardião (usuário logado).
+  Future<void> aceitarConviteGuardiao(
+      String conviteDocId, String idUsuario, String idGuardiao) async {
     try {
-      // Verifica se já existe a relação de guardião
-      QuerySnapshot duplicado = await guardioes
-          .where('id_usuario', isEqualTo: idUsuario)
-          .where('id_guardiao', isEqualTo: idGuardiao)
-          .get();
-
-      if (duplicado.docs.isNotEmpty) {
-        throw Exception("Esta relação de guardião já existe.");
-      }
-
-      // Cria um novo documento na coleção guardiões
-      await guardioes.add({
-        'id_usuario': idUsuario,  // ID do usuário que está sendo guardiado
-        'id_guardiao': idGuardiao,  // ID do guardião
-        'inativado': false,  // Relacionamento ativo inicialmente
+      // Atualiza o documento do convite para "aceito"
+      await guardioes.doc(conviteDocId).update({
+        'status': 'aceito',
         'timestamp': Timestamp.now(),
       });
 
-      // Atualiza o usuário para marcar que ele é um guardião
-      await usuario.doc(idGuardiao).update({
-        'guardiao': true,  // Marca o usuário como guardião
+      // Atualiza o documento do usuário que enviou o convite:
+      // Adiciona o ID do guardião à lista de guardiões desse usuário
+      await usuario.doc(idUsuario).update({
+        'guardioes': FieldValue.arrayUnion([idGuardiao]),
       });
 
-      // Atualiza o usuário para adicionar o guardião à lista de guardiões
-      await usuario.doc(idUsuario).update({
-        'guardioes': FieldValue.arrayUnion([idGuardiao]),  // Adiciona o guardião à lista de guardiões
+      // Atualiza o documento do guardião para marcá-lo como guardião
+      await usuario.doc(idGuardiao).update({
+        'guardiao': true,
       });
     } catch (e) {
-      throw Exception("Erro ao adicionar guardião: $e");
+      print("Erro ao aceitar convite: $e");
+      throw Exception("Erro ao aceitar convite: $e");
     }
   }
 
-  // Método para inativar um guardião (alterando a flag 'inativado' para true)
-  Future<void> inativarGuardiao(String idUsuario, String idGuardiao) async {
+  /// Recusa o convite de guardião.
+  /// [conviteDocId] é o ID do documento do convite a ser atualizado.
+  Future<void> recusarConviteGuardiao(String conviteDocId) async {
     try {
-      // Busca a relação de guardião para o usuário especificado
-      QuerySnapshot querySnapshot = await guardioes
-          .where('id_usuario', isEqualTo: idUsuario)
-          .where('id_guardiao', isEqualTo: idGuardiao)
-          .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        throw Exception("Relação de guardião não encontrada.");
-      }
-
-      // Atualiza o documento para marcar a relação como inativada
-      for (var doc in querySnapshot.docs) {
-        await doc.reference.update({
-          'inativado': true,
-          'timestamp': Timestamp.now(),
-        });
-      }
-
-      // Atualiza o usuário para remover o guardião da lista de guardiões
-      await usuario.doc(idUsuario).update({
-        'guardioes': FieldValue.arrayRemove([idGuardiao]),
-      });
-
-      // Atualiza o guardião para desmarcar como guardião
-      await usuario.doc(idGuardiao).update({
-        'guardiao': false,
+      await guardioes.doc(conviteDocId).update({
+        'status': 'recusado',
+        'timestamp': Timestamp.now(),
       });
     } catch (e) {
-      throw Exception("Erro ao inativar guardião: $e");
+      print("Erro ao recusar convite: $e");
+      throw Exception("Erro ao recusar convite: $e");
     }
   }
 
-  /////////////////////////////////////////////////////////////////////
-  // CRUD de Tipo de Ocorrência
-  /////////////////////////////////////////////////////////////////////
+  /// Retorna um stream dos convites pendentes para o guardião com [idGuardiao].
+  Stream<QuerySnapshot> getConvitesRecebidosGuardiao(String idGuardiao) {
+    return guardioes
+        .where('id_guardiao', isEqualTo: idGuardiao)
+        .where('status', isEqualTo: 'pendente')
+        .snapshots();
+  }
+
+  // ==============================================================
+  // OUTRAS FUNÇÕES (CRUD de TipoOcorrencia, Gravidade, Usuário, Ocorrências)
+  // ==============================================================
 
   Future<void> addTipoOcorrencia(String tipoOcorrenciaText) async {
     String tipoOcorrenciaFormatado = tipoOcorrenciaText.trim().toLowerCase();
-
     if (tipoOcorrenciaFormatado.length < 3 ||
         tipoOcorrenciaFormatado.length > 100) {
       throw Exception(
           "O tipo de ocorrência deve ter entre 3 e 100 caracteres.");
     }
-
     QuerySnapshot duplicado = await tipoOcorrencia
         .where('tipoOcorrencia', isEqualTo: tipoOcorrenciaFormatado)
         .get();
-
     if (duplicado.docs.isNotEmpty) {
       throw Exception("Este tipo de ocorrência já existe.");
     }
-
     await tipoOcorrencia.add({
       'tipoOcorrencia': tipoOcorrenciaFormatado,
       'timestamp': Timestamp.now(),
@@ -176,11 +150,9 @@ class FirestoreService {
 
   Future<void> atualizarTipoOcorrencia(String docID, String novoTipo) async {
     String tipoFormatado = novoTipo.trim().toLowerCase();
-
     if (tipoFormatado.isEmpty || tipoFormatado.length < 3) {
       throw Exception("O tipo de ocorrência deve ter no mínimo 3 caracteres.");
     }
-
     await tipoOcorrencia.doc(docID).update({
       'tipoOcorrencia': tipoFormatado,
       'timestamp': Timestamp.now(),
@@ -194,25 +166,17 @@ class FirestoreService {
     });
   }
 
-  /////////////////////////////////////////////////////////////////////
-  // CRUD de Gravidade
-  /////////////////////////////////////////////////////////////////////
-
   Future<void> addgravidade(String gravidadeText) async {
     String gravidadeFormatado = gravidadeText.trim().toLowerCase();
-
     if (gravidadeFormatado.length < 3 || gravidadeFormatado.length > 100) {
       throw Exception("A gravidade deve ter entre 3 e 100 caracteres.");
     }
-
     QuerySnapshot duplicado = await gravidade
         .where('gravidade', isEqualTo: gravidadeFormatado)
         .get();
-
     if (duplicado.docs.isNotEmpty) {
       throw Exception("Esta gravidade já existe.");
     }
-
     await gravidade.add({
       'gravidade': gravidadeFormatado,
       'timestamp': Timestamp.now(),
@@ -222,19 +186,16 @@ class FirestoreService {
 
   Stream<QuerySnapshot> getgravidadeStream() {
     return gravidade
-        .where('inativar', isEqualTo: false) // Filtrando as gravidades ativas
+        .where('inativar', isEqualTo: false)
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
 
   Future<void> atualizargravidade(String docID, String novagravidade) async {
     String gravidadeFormatado = novagravidade.trim().toLowerCase();
-
     if (gravidadeFormatado.length < 3 || gravidadeFormatado.length > 100) {
-      throw Exception(
-          "A gravidade deve ter no mínimo 3 e no máximo 100 caracteres.");
+      throw Exception("A gravidade deve ter no mínimo 3 e no máximo 100 caracteres.");
     }
-
     await gravidade.doc(docID).update({
       'gravidade': gravidadeFormatado,
       'timestamp': Timestamp.now(),
@@ -247,10 +208,6 @@ class FirestoreService {
       'inativar': true,
     });
   }
-
-  /////////////////////////////////////////////////////////////////////
-  // CRUD de Usuário (Integração com Firebase Authentication)
-  /////////////////////////////////////////////////////////////////////
 
   Future<void> addUsuario(String uid, Map<String, dynamic> dadosUsuario) async {
     await usuario.doc(uid).set({
@@ -272,8 +229,7 @@ class FirestoreService {
         .snapshots();
   }
 
-  Future<void> atualizarUsuario(
-      String uid, Map<String, dynamic> dadosUsuario) async {
+  Future<void> atualizarUsuario(String uid, Map<String, dynamic> dadosUsuario) async {
     dadosUsuario['timestamp'] = Timestamp.now();
     return await usuario.doc(uid).update(dadosUsuario);
   }
@@ -285,19 +241,10 @@ class FirestoreService {
     });
   }
 
-  /////////////////////////////////////////////////////////////////////
-  // CRUD de Ocorrências
-  /////////////////////////////////////////////////////////////////////
-
-  Future<void> addOcorrencia(
-      String tipoOcorrencia,
-      String gravidade,
-      String relato,
-      String textoSocorro,
-      bool enviarParaGuardiao) async {
+  Future<void> addOcorrencia(String tipoOcorrencia, String gravidade, String relato, String textoSocorro, bool enviarParaGuardiao) async {
     await ocorrencias.add({
       'tipoOcorrencia': tipoOcorrencia,
-      'gravidade': gravidade,  // Incluído o campo gravidade
+      'gravidade': gravidade,
       'relato': relato,
       'textoSocorro': textoSocorro,
       'enviarParaGuardiao': enviarParaGuardiao,

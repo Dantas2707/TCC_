@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'tela_informacoes_pessoais.dart';
-import 'tela_guardiao.dart'; // Nova tela que será criada
+import 'tela_guardiao.dart'; // Importa a tela de cadastro de guardião
 
 class SettingsMenuScreen extends StatelessWidget {
   const SettingsMenuScreen({Key? key}) : super(key: key);
@@ -17,12 +17,19 @@ class SettingsMenuScreen extends StatelessWidget {
             leading: const Icon(Icons.person),
             title: const Text('Informações Pessoais'),
             onTap: () {
-              // Navega para a tela de informações pessoais
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const PersonalInfoScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const PersonalInfoScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.shield),
+            title: const Text('Cadastro de Guardião'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaGuardiaoUnificada()),
               );
             },
           ),

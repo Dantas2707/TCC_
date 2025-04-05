@@ -1,7 +1,7 @@
+import 'package:crud/Pages/home_page.dart';
 import 'package:crud/Pages/tela_usuario.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-  // Ajuste o caminho da tela de informações pessoais
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -31,10 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
               email: _emailController.text.trim(),
               password: _passwordController.text.trim());
 
-      // Navegar para a tela de informações pessoais após o login
+      // Navegar para a tela de menu após o login
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const TelaUsuario()),
+        MaterialPageRoute(builder: (context) => const HomePage()),
       );
     } on FirebaseAuthException catch (e) {
       setState(() {
