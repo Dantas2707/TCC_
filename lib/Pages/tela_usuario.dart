@@ -51,13 +51,8 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
   // Função para gerar o hash da senha (SHA-256)
   String gerarHashSenha(String senha) {
-    // Converte a senha para bytes
     final bytes = utf8.encode(senha);
-
-    // Gera o hash SHA-256
     final hash = sha256.convert(bytes);
-
-    // Retorna o hash como uma string hexadecimal
     return hash.toString();
   }
 
@@ -90,15 +85,15 @@ class _TelaUsuarioState extends State<TelaUsuario> {
         // Gera o hash da senha
         String hashSenha = gerarHashSenha(senhaController.text.trim());
 
-        // Cria o usuário no Firebase Authentication (sem a criptografia)
+        // Cria o usuário no Firebase Authentication
         UserCredential authResult = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
           email: emailController.text.trim(),
-          password: senhaController.text.trim(), // Senha em texto claro para criar o usuário
+          password: senhaController.text.trim(),
         );
         String uid = authResult.user!.uid;
 
-        // Envia um e-mail de verificação
+        // Envia o e-mail de verificação
         await authResult.user!.sendEmailVerification();
 
         // Prepara os dados do usuário
@@ -111,7 +106,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
           'sexo': _sexoSelecionado,
           'inativar': false,
           'timestamp': DateTime.now(),
-          'senha': hashSenha, // Armazena o hash da senha
+          'senha': hashSenha,
         };
 
         // Salva os dados no Firestore utilizando o UID do usuário
@@ -121,10 +116,41 @@ class _TelaUsuarioState extends State<TelaUsuario> {
           const SnackBar(content: Text('Usuário registrado com sucesso!')),
         );
 
-        // Redireciona para a tela de login, indicando que o e-mail foi enviado
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+        // Exibe um diálogo solicitando a verificação do e-mail
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text("Verificação de Email"),
+            content: const Text(
+                "Um link de verificação foi enviado ao seu email. Por favor, confirme seu email para ativar sua conta e realizar o login."),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  // Atualiza os dados do usuário para verificar a propriedade emailVerified
+                  await FirebaseAuth.instance.currentUser?.reload();
+                  if (FirebaseAuth.instance.currentUser?.emailVerified ?? false) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content:
+                              Text('Email verificado. Faça login agora.')),
+                    );
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => LoginScreen()),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Email ainda não verificado. Por favor, verifique seu email.')),
+                    );
+                  }
+                },
+                child: const Text("Já verifiquei"),
+              ),
+            ],
+          ),
         );
 
         _formKey.currentState!.reset();

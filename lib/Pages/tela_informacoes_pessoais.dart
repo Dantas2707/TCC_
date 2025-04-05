@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:crud/services/firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 
 class PersonalInfoScreen extends StatefulWidget {
   const PersonalInfoScreen({Key? key}) : super(key: key);
@@ -13,7 +11,6 @@ class PersonalInfoScreen extends StatefulWidget {
 
 class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   final _formKey = GlobalKey<FormState>();
-  final FirestoreService _firestoreService = FirestoreService();
 
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -30,7 +27,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     super.initState();
     // Obtém o usuário atual do FirebaseAuth
     user = FirebaseAuth.instance.currentUser;
-    // Carrega os dados se o usuário estiver logado
     if (user != null) {
       _loadUserData();
     }
@@ -50,14 +46,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         _cpfController.text = data['cpf'] ?? '';
         _telefoneController.text = data['numerotelefone'] ?? '';
         if (data['dataNasc'] != null) {
-          // Se dataNasc for um Timestamp do Firestore
           if (data['dataNasc'] is Timestamp) {
             final Timestamp timestamp = data['dataNasc'];
             final DateTime dateTime = timestamp.toDate();
-            _dataNascController.text = dateTime.toIso8601String().split('T').first;
-          }
-          // Caso seja DateTime armazenado como string, ajuste conforme necessário
-          else if (data['dataNasc'] is String) {
+            _dataNascController.text =
+                dateTime.toIso8601String().split('T').first;
+          } else if (data['dataNasc'] is String) {
             _dataNascController.text = data['dataNasc'];
           }
         }
@@ -72,51 +66,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     }
   }
 
-  // Atualiza dados do usuário no Firestore
-  Future<void> _updateUserInfo() async {
-    if (_formKey.currentState!.validate() && user != null) {
-      final dadosAtualizados = {
-        'nome': _nomeController.text.trim(),
-        'email': _emailController.text.trim(),
-        'cpf': _cpfController.text.trim(),  // O CPF permanece o mesmo e não pode ser alterado
-        'numerotelefone': _telefoneController.text.trim(),
-        // Se armazenado como DateTime ou Timestamp
-        'dataNasc': DateTime.tryParse(_dataNascController.text) ?? DateTime.now(),
-        'sexo': _sexoSelecionado,
-      };
-
-      try {
-        await _firestoreService.atualizarUsuario(user!.uid, dadosAtualizados);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Dados atualizados com sucesso!')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar: $e')),
-        );
-      }
-    }
-  }
-
-  // Seleciona data de nascimento
-  Future<void> _selecionarDataNascimento() async {
-    final hoje = DateTime.now();
-    final dataEscolhida = await showDatePicker(
-      context: context,
-      initialDate: DateTime(hoje.year - 20),
-      firstDate: DateTime(hoje.year - 120),
-      lastDate: DateTime(hoje.year - 13),
-    );
-    if (dataEscolhida != null) {
-      setState(() {
-        _dataNascController.text = dataEscolhida.toIso8601String().split('T').first;
-      });
-    }
-  }
-
   @override
   void dispose() {
-    // Liberar recursos
     _nomeController.dispose();
     _emailController.dispose();
     _cpfController.dispose();
@@ -139,77 +90,59 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Nome
+                    // Nome (apenas visualização)
                     TextFormField(
                       controller: _nomeController,
                       decoration: const InputDecoration(labelText: 'Nome'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe o nome';
-                        }
-                        return null;
-                      },
+                      readOnly: true,
                     ),
-                    // Email
+                    // E-mail (apenas visualização)
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(labelText: 'E-mail'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe o email';
-                        }
-                        return null;
-                      },
+                      readOnly: true,
                     ),
-                    // CPF (Desabilitado para edição)
+                    // CPF (apenas visualização, sem opacidade)
                     TextFormField(
                       controller: _cpfController,
                       decoration: const InputDecoration(labelText: 'CPF'),
-                      enabled: false, // O campo CPF é apenas leitura
+                      readOnly: true,
                     ),
-                    // Telefone
+                    // Telefone (apenas visualização)
                     TextFormField(
                       controller: _telefoneController,
                       decoration: const InputDecoration(labelText: 'Telefone'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe o telefone';
-                        }
-                        return null;
-                      },
+                      readOnly: true,
                     ),
-                    // Data de Nascimento
+                    // Data de Nascimento (apenas visualização)
                     TextFormField(
                       controller: _dataNascController,
-                      decoration:
-                          const InputDecoration(labelText: 'Data Nascimento'),
+                      decoration: const InputDecoration(labelText: 'Data Nascimento'),
                       readOnly: true,
-                      onTap: _selecionarDataNascimento,
                     ),
-                    // Sexo
-                    DropdownButtonFormField<String>(
-                      value: _sexoSelecionado,
-                      decoration: const InputDecoration(labelText: 'Sexo'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Masculino',
-                          child: Text('Masculino'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Feminino',
-                          child: Text('Feminino'),
-                        ),
-                      ],
-                      onChanged: (valor) {
-                        setState(() {
-                          _sexoSelecionado = valor;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _updateUserInfo,
-                      child: const Text('Atualizar'),
+                    // Sexo (apenas visualização sem seta)
+                    IgnorePointer(
+                      ignoring: true,
+                      child: DropdownButtonFormField<String>(
+                        icon: const SizedBox.shrink(), // Remove a seta
+                        value: _sexoSelecionado,
+                        decoration: const InputDecoration(labelText: 'Sexo'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Masculino',
+                            child: Text('Masculino'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Feminino',
+                            child: Text('Feminino'),
+                          ),
+                        ],
+                        onChanged: (valor) {
+                          setState(() {
+                            _sexoSelecionado = valor;
+                          });
+                        },
+                      ),
                     ),
                   ],
                 ),
