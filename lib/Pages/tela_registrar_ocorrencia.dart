@@ -18,7 +18,8 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
   // Função para registrar a ocorrência
   void _registrarOcorrencia() async {
     if (_tipoOcorrenciaSelecionado == null || _gravidadeSelecionada == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selecione um tipo de ocorrência e gravidade')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Selecione um tipo de ocorrência e gravidade')));
       return;
     }
 
@@ -26,7 +27,8 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
     String textoSocorro = _textoSocorroController.text.trim();
 
     if (relato.isEmpty || textoSocorro.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Preencha todos os campos')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Preencha todos os campos')));
       return;
     }
 
@@ -48,9 +50,11 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
         _enviarParaGuardiao = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ocorrência registrada com sucesso')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ocorrência registrada com sucesso')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao registrar ocorrência: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao registrar ocorrência: $e')));
     }
   }
 
@@ -79,7 +83,10 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Text('Nenhum tipo de ocorrência encontrado.');
+                  return Text(
+                    'Nenhum tipo de ocorrência encontrado. Por favor, entre em contato com o administrador do sistema para informar este problema.',
+                    style: TextStyle(color: Colors.red),
+                  );
                 }
 
                 List<String> tiposOcorrencia = snapshot.data!.docs.map((doc) {
