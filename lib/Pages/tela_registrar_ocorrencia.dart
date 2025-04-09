@@ -1,4 +1,3 @@
-// arquivo: ocorrencia_page.dart
 import 'dart:io'; // Necessário para manipular arquivos locais
 import 'package:crud/services/firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -32,6 +31,13 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
 
   // UID do usuário logado (usando FirebaseAuth)
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    // Define o texto padrão para o campo de "Texto Socorro"
+    _textoSocorroController.text = "Atenção! Estou sob ameaça! Preciso de ajuda!";
+  }
 
   // Função para selecionar arquivos (vídeo, foto e áudio)
   Future<void> _pickAnexos() async {
@@ -292,7 +298,7 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
                 },
               ),
               SizedBox(height: 16),
-              // Campo de texto para o relato
+              // Campo de texto para o relato com botão de anexar mídia integrado (suffixIcon)
               TextFormField(
                 controller: _relatoController,
                 maxLines: 3,
@@ -313,6 +319,7 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
               TextFormField(
                 controller: _textoSocorroController,
                 maxLines: 3,
+                maxLength: 255,
                 decoration: InputDecoration(
                   labelText: 'Texto Socorro',
                   hintText: 'Digite a mensagem de socorro aqui',
@@ -354,17 +361,16 @@ class _OcorrenciaPageState extends State<OcorrenciaPage> {
                   ElevatedButton(
                     onPressed: _registrarOcorrencia,
                     style: ButtonStyle(
-                      backgroundColor: MaterialStateProperty.all(Colors.red),
+                      backgroundColor: WidgetStateProperty.all(Colors.red),
                     ),
                     child: Text('Registrar'),
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      // Ação para S.O.S (pode ser similar ao envio de SMS, se desejado)
                       print('S.O.S Enviado');
                     },
                     style: ButtonStyle(
-                      backgroundColor: MaterialStateProperty.all(Colors.red),
+                      backgroundColor: WidgetStateProperty.all(Colors.red),
                     ),
                     child: Text('S.O.S'),
                   ),
