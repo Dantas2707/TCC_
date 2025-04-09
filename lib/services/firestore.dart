@@ -1,4 +1,7 @@
+import 'dart:io'; // Necessário para manipular arquivos locais (mobile)
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_picker/file_picker.dart';
 
 class FirestoreService {
   final CollectionReference tipoOcorrencia =
@@ -48,12 +51,12 @@ class FirestoreService {
 
         // Cria um documento de convite na coleção 'guardiões'
         await guardioes.add({
-          'id_usuario': idUsuario,         // ID do usuário que está enviando o convite
-          'nome_usuario': nomeUsuario,       // Nome do usuário que enviou o convite
-          'id_guardiao': idGuardiao,         // ID do possível guardião
-          'invitado': true,                // Marca o documento como convite
+          'id_usuario': idUsuario, // ID do usuário que está enviando o convite
+          'nome_usuario': nomeUsuario, // Nome do usuário que enviou o convite
+          'id_guardiao': idGuardiao, // ID do possível guardião
+          'invitado': true, // Marca o documento como convite
           'timestamp': Timestamp.now(),
-          'status': 'pendente',            // Status inicial: pendente
+          'status': 'pendente', // Status inicial: pendente
         });
 
         print("Convite enviado para o e-mail: $email");
@@ -194,7 +197,8 @@ class FirestoreService {
   Future<void> atualizargravidade(String docID, String novagravidade) async {
     String gravidadeFormatado = novagravidade.trim().toLowerCase();
     if (gravidadeFormatado.length < 3 || gravidadeFormatado.length > 100) {
-      throw Exception("A gravidade deve ter no mínimo 3 e no máximo 100 caracteres.");
+      throw Exception(
+          "A gravidade deve ter no mínimo 3 e no máximo 100 caracteres.");
     }
     await gravidade.doc(docID).update({
       'gravidade': gravidadeFormatado,
@@ -229,7 +233,8 @@ class FirestoreService {
         .snapshots();
   }
 
-  Future<void> atualizarUsuario(String uid, Map<String, dynamic> dadosUsuario) async {
+  Future<void> atualizarUsuario(
+      String uid, Map<String, dynamic> dadosUsuario) async {
     dadosUsuario['timestamp'] = Timestamp.now();
     return await usuario.doc(uid).update(dadosUsuario);
   }
@@ -241,20 +246,70 @@ class FirestoreService {
     });
   }
 
-  Future<void> addOcorrencia(String tipoOcorrencia, String gravidade, String relato, String textoSocorro, bool enviarParaGuardiao) async {
+  // ==================================================================
+  // MÉTODO DE ADIÇÃO DE OCORRÊNCIA COM UPLOAD DE ANEXOS
+  // ==================================================================
+  Future<void> addOcorrencia(
+    String tipoOcorrencia,
+    String gravidade,
+    String relato,
+    String textoSocorro,
+    bool enviarParaGuardiao, {
+    List<PlatformFile>? anexos,
+  }) async {
+    List<String> anexosUrls = [];
+
+    // Se houver anexos, faz o upload de cada arquivo para o Firebase Storage.
+    if (anexos != null && anexos.isNotEmpty) {
+      for (var file in anexos) {
+        try {
+          String url = await uploadFile(file);
+          anexosUrls.add(url);
+        } catch (e) {
+          print('Erro ao fazer upload do anexo ${file.name}: $e');
+          // Aqui você pode optar por interromper o processo ou continuar sem esse arquivo.
+        }
+      }
+    }
+
+    // Salva a ocorrência no Firestore, incluindo os URLs dos anexos.
     await ocorrencias.add({
       'tipoOcorrencia': tipoOcorrencia,
       'gravidade': gravidade,
       'relato': relato,
       'textoSocorro': textoSocorro,
       'enviarParaGuardiao': enviarParaGuardiao,
+      'anexos': anexosUrls,
       'timestamp': Timestamp.now(),
     });
   }
 
   Stream<QuerySnapshot> getOcorrenciasStream() {
-    return ocorrencias
-        .orderBy('timestamp', descending: true)
-        .snapshots();
+    return ocorrencias.orderBy('timestamp', descending: true).snapshots();
+  }
+
+  // ==================================================================
+  // Função auxiliar para fazer o upload de um único arquivo para o Firebase Storage.
+  // ==================================================================
+  Future<String> uploadFile(PlatformFile file) async {
+    // Cria uma referência única para o arquivo usando timestamp e nome
+    final storageRef = FirebaseStorage.instance.ref().child(
+      'ocorrencias/${DateTime.now().millisecondsSinceEpoch}_${file.name}',
+    );
+    UploadTask uploadTask;
+
+    // Se o arquivo possuir path (mobile), faz o upload com putFile
+    if (file.path != null) {
+      File localFile = File(file.path!);
+      uploadTask = storageRef.putFile(localFile);
+    } else if (file.bytes != null) {
+      // Caso contrário, se houver bytes (ex. Flutter Web), usa putData
+      uploadTask = storageRef.putData(file.bytes!);
+    } else {
+      throw Exception("Arquivo sem dados para upload.");
+    }
+
+    TaskSnapshot snapshot = await uploadTask;
+    return await snapshot.ref.getDownloadURL();
   }
 }
